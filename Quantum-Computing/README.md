@@ -1,3 +1,7 @@
 # Quantum Computing
 
-> 양자 컴퓨팅에 대해서 정리하고 공부합니다
+> What is Quantum Computing?
+
+
+>Quantum Algorithms : Deutsch's algorithm
+>Quantum Algorithms : Grover's search algorithm
