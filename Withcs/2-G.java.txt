@@ -1,0 +1,60 @@
+import java.util.Scanner;
+
+public class Main {
+
+
+    public static void main(String[] args) {
+
+        Scanner scan= new Scanner(System.in);
+
+        int N= scan.nextInt();
+
+
+        double R=0;
+
+        for(int i=0;i<6;i++){
+
+            R=(N+R)*1.00417;
+
+        }
+
+
+        System.out.printf("%.1f",(int)(R*10)/10.0);
+
+
+
+
+    }
+
+
+}
+import java.util.Scanner;
+
+public class Main {
+
+
+    public static void main(String[] args) {
+
+        Scanner scan= new Scanner(System.in);
+
+        int N= scan.nextInt();
+
+
+        double R=0;
+
+        for(int i=0;i<6;i++){
+
+            R=(N+R)*1.00417;
+
+        }
+
+
+        System.out.printf("%.1f",(int)(R*10)/10.0);
+
+
+
+
+    }
+
+
+}

@@ -1,0 +1,24 @@
+
+import java.util.Scanner;
+
+public class Main {
+
+
+    public static void main(String[] args) {
+        Scanner scan=new Scanner(System.in);
+        double R=scan.nextDouble();
+        double L=scan.nextDouble();
+
+        double A=R*R*3.14159;
+        double V=R*R*3.14159*L;
+
+        A=A-A%0.1;
+        V=V-V%0.1;
+
+        System.out.printf("%.1f\n",A);
+        System.out.printf("%.1f\n",V);
+    }
+
+
+
+}

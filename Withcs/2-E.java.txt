@@ -1,0 +1,24 @@
+import java.util.Scanner;
+
+public class Main{
+
+    public static void main(String[] args) {
+        Scanner scan = new Scanner(System.in);
+        double W = scan.nextDouble();
+        double H = scan.nextDouble();
+
+
+        double K = W * 0.45359237;
+        double I = H * 0.0254;
+
+
+        double B = K / (I*I);
+
+
+
+
+
+
+        System.out.printf("%.2f\n",(int)(B*100)/100.0);
+    }
+}

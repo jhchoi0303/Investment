@@ -1,0 +1,29 @@
+import java.util.Scanner;
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        Scanner scan = new Scanner(System.in);
+        double x1 = scan.nextDouble();
+        double y1 = scan.nextDouble();
+        double x2 = scan.nextDouble();
+        double y2 = scan.nextDouble();
+        double x3 = scan.nextDouble();
+        double y3 = scan.nextDouble();
+
+
+        double s=(x1*y2+y1*x3+y3*x2-y2*x3-y1*x2-x1*y3)/2;
+
+        if(s<0){
+            s= -s;
+        }
+
+
+        System.out.printf("%.1f\n",(int)(s*10)/10.0);
+
+
+    }
+
+
+}

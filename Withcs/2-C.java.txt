@@ -1,0 +1,28 @@
+import java.util.Scanner;
+
+
+public class Main {
+
+    public static void main(String[] args){
+
+
+        Scanner scan= new Scanner(System.in);
+        double M = scan.nextDouble();
+        double F;
+        double I;
+        double x;
+        double y;
+
+
+        I = M*39.3701;
+        F = I/12;
+
+
+        x =F;
+        y=(F-(int)F) *12;
+        System.out.println((int)x);
+        System.out.println((int)y);
+
+
+    }
+}
