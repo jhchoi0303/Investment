@@ -1,0 +1,57 @@
+import java.util.Scanner;
+
+public class Main {
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		double a=scan.nextDouble();
+		double b=scan.nextDouble();
+		double c=scan.nextDouble();
+		double d=scan.nextDouble();
+		double e=scan.nextDouble();
+		double f=scan.nextDouble();
+
+		
+		
+		
+		
+		double m=a*d-b*c;
+		
+		double x=(e*d-b*f)/m;
+		double y=(a*f-e*c)/m;
+		
+		
+		
+		if(m==0) {
+			System.out.printf("no solution");
+		}
+		else {
+			
+			
+		
+			
+			if(x>y) {
+				
+				
+				System.out.printf("%d %d",(int)x,(int)y);
+			}
+			else {
+				System.out.printf("%d %d",(int)y,(int)x);
+			}
+			
+		}
+		
+		
+		
+		
+		}
+		
+		
+		
+		
+	}
+	
+
+	
+

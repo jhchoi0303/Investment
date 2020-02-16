@@ -1,0 +1,40 @@
+import java.util.Scanner;
+
+public class Main {
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		
+		int t=scan.nextInt();
+		String h="";
+		char hexB = 0;
+		
+		
+		while(t!=0) {
+			int hexA= t%16;
+			
+			if(hexA<=9&&hexA>=0){
+				hexB=(char)(hexA+'0');
+			}
+			else {
+				hexB=(char)(hexA+'A'-10);
+			}
+			
+			
+			
+					
+					
+			h=hexB+h;
+			t=t/16;
+		}
+		
+	
+		
+		h=h.toLowerCase();
+		
+		System.out.printf("%s",h);
+		
+	}
+
+}

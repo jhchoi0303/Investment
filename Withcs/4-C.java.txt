@@ -1,0 +1,26 @@
+import java.util.Scanner;
+
+public class Main {
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		
+		int n=scan.nextInt();
+		double s=scan.nextDouble();
+		
+		
+		double area=(n*s*s)/(4*Math.tan(Math.PI/n));
+		
+		
+		System.out.printf("%.2f",(int)(area*100)/100.0);
+		
+		
+		
+	}
+	
+	
+	
+	
+
+}

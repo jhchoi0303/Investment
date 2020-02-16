@@ -1,0 +1,40 @@
+import java.util.Scanner;
+public class Main{
+
+
+
+
+
+    public static void main(String[] args) {
+
+
+
+        Scanner scan= new Scanner(System.in);
+        double a=scan.nextDouble();
+        double b=scan.nextDouble();
+        double c=scan.nextDouble();
+        double e=b*b-4*a*c;
+        double d=Math.pow(e,0.5);
+        double x=(-b+d)/(2*a);
+        double y=(-b-d)/(2*a);
+
+
+        double result=0;
+        
+        if(e>=0) {
+            if(x>=y)
+            {result= Math.floor(x*10)/10.0;}
+            else
+            {result= Math.floor(y*10)/10.0;}
+
+            System.out.printf("%.1f\n", result);
+        }
+
+        else{
+            System.out.printf("complex");
+        }
+
+
+    }
+
+}

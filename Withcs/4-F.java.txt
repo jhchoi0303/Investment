@@ -1,0 +1,40 @@
+import java.util.Scanner;
+
+public class Main{
+
+    public static void main(String[] args) {
+        Scanner scan = new Scanner(System.in);
+        String a = scan.nextLine();
+        String b = scan.nextLine();
+        String c = scan.nextLine();
+        
+        
+        
+        if(a.compareTo(b) < 0 && b.compareTo(c) < 0) {
+        	 System.out.printf("%s %s %s",a,b,c);
+        }
+           
+        else if(a.compareTo(c) < 0 && c.compareTo(b) < 0) {
+        	
+            System.out.printf("%s %s %s",a,c,b);
+            }
+        else if(b.compareTo(a) < 0 && a.compareTo(c) < 0) {
+        	System.out.printf("%s %s %s",b,a,c);
+        }
+            
+        else if(b.compareTo(c) < 0 && c.compareTo(a) < 0) {
+        	System.out.printf("%s %s %s",b,c,a);
+        }
+            
+        else if(c.compareTo(a) < 0 && a.compareTo(b) < 0) {
+        	System.out.printf("%s %s %s",c,a,b);
+        }
+            
+        else if(c.compareTo(b) < 0 && b.compareTo(a) < 0) {
+        	
+            System.out.printf("%s %s %s",c,b,a);
+            }
+
+
+    }
+}

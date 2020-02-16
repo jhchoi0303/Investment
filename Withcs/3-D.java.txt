@@ -1,0 +1,140 @@
+import java.util.Scanner;
+
+public class Main {
+
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		int year=scan.nextInt();
+		int month=scan.nextInt();
+		int day=scan.nextInt();
+		
+		int h=0;
+		int j=0;
+		int k=0;
+		
+		if(month==1||month==2) {
+			if(month==1) {
+				month=13;
+			}
+			if(month==2){
+				month=14;
+			}
+			year=year-1;
+			
+			
+		}
+		
+		
+		
+		
+		
+		j=year/100;
+		k=year%100;
+		
+		
+		
+		
+		
+		h=(day+((month+1)*26/10)+(k)+(k*1/4)+(j*1/4)+(5*j))%7;
+		
+		
+		if(h==0) {
+			System.out.printf("Saturday");
+		}
+		else if(h==1) {
+			System.out.printf("Sunday");
+		}
+		else if(h==2) {
+			System.out.printf("Monday");
+		}
+		else if(h==3) {
+			System.out.printf("Tuesday");
+		}
+		else if(h==4) {
+			System.out.printf("Wednesday");
+		}
+		else if(h==5) {
+			System.out.printf("Thursday");
+		}
+		else if(h==6) {
+			System.out.printf("Friday");
+		}
+		
+		
+		
+		
+		
+	}
+}
+import java.util.Scanner;
+
+public class Main {
+
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		int year=scan.nextInt();
+		int month=scan.nextInt();
+		int day=scan.nextInt();
+		
+		int h=0;
+		int j=0;
+		int k=0;
+		
+		if(month==1||month==2) {
+			if(month==1) {
+				month=13;
+			}
+			if(month==2){
+				month=14;
+			}
+			year=year-1;
+			
+			
+		}
+		
+		
+		
+		
+		
+		j=year/100;
+		k=year%100;
+		
+		
+		
+		
+		
+		h=(day+((month+1)*26/10)+(k)+(k*1/4)+(j*1/4)+(5*j))%7;
+		
+		
+		if(h==0) {
+			System.out.printf("Saturday");
+		}
+		else if(h==1) {
+			System.out.printf("Sunday");
+		}
+		else if(h==2) {
+			System.out.printf("Monday");
+		}
+		else if(h==3) {
+			System.out.printf("Tuesday");
+		}
+		else if(h==4) {
+			System.out.printf("Wednesday");
+		}
+		else if(h==5) {
+			System.out.printf("Thursday");
+		}
+		else if(h==6) {
+			System.out.printf("Friday");
+		}
+		
+		
+		
+		
+		
+	}
+}

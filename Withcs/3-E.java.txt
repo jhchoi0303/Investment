@@ -1,0 +1,47 @@
+import java.util.Scanner;
+
+public class Main{
+	
+	
+	public static void main(String[] args) {
+		
+		
+		
+		Scanner scan=new Scanner(System.in);
+		double x=scan.nextDouble();
+		double y=scan.nextDouble();
+		
+		if(x<=0) {
+			x=-x;
+			
+		}
+		if(y<=0) {
+			y=-y;
+		}
+		
+		
+		if(x<5 && y<2.5) {
+			System.out.printf("in");
+		}
+		else if((x==5 && y<=2.5) ||(x<=5 && y==2.5)) {
+			System.out.printf("on");
+			
+		}
+		else {
+			System.out.printf("out");
+		}
+		
+		
+		
+		
+		
+		
+		
+	}
+	
+	
+	
+	
+	
+
+}

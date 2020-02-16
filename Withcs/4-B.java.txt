@@ -1,0 +1,64 @@
+import java.util.Scanner;
+
+public class Main {
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		
+		double x1=scan.nextDouble();
+		double y1=scan.nextDouble();
+		double x2=scan.nextDouble();
+		double y2=scan.nextDouble();
+		
+		double d= (6371.01)*Math.acos(Math.sin(Math.toRadians(x1))*Math.sin(Math.toRadians(x2))+Math.cos(Math.toRadians(x1))*Math.cos(Math.toRadians(x2))*Math.cos(Math.toRadians(y1-y2)));
+		
+		System.out.printf("%.2f",Math.round(d*100)/100.0);
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+	}
+	
+
+}
+import java.util.Scanner;
+
+public class Main {
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		
+		double x1=scan.nextDouble();
+		double y1=scan.nextDouble();
+		double x2=scan.nextDouble();
+		double y2=scan.nextDouble();
+		
+		double d= (6371.01)*Math.acos(Math.sin(Math.toRadians(x1))*Math.sin(Math.toRadians(x2))+Math.cos(Math.toRadians(x1))*Math.cos(Math.toRadians(x2))*Math.cos(Math.toRadians(y1-y2)));
+		
+		System.out.printf("%.2f",Math.round(d*100)/100.0);
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+	}
+	
+
+}

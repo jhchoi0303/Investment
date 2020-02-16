@@ -1,0 +1,35 @@
+import java.util.Scanner;
+
+public class Main {
+	
+	
+	public static void main(String[] args) {
+		
+		
+		Scanner scan= new Scanner(System.in);
+		double r=scan.nextDouble();
+	
+		
+		double pi=Math.PI;
+		
+		double s=2*r*Math.sin(pi/5);
+		
+		double A= (5*s*s)/(4*Math.tan(pi/5));
+		
+		System.out.printf("%.2f",Math.round(A*100)/100.0);
+		
+		
+		
+		
+		
+		
+		
+	}
+	
+	
+	
+	
+	
+
+}
+s

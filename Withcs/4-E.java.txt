@@ -1,0 +1,49 @@
+import java.util.Scanner;
+
+public class Main {
+	
+	
+	public static void main(String[] args) {
+		
+		Scanner scan=new Scanner(System.in);
+		
+		String i=scan.next();
+		char m=i.charAt(0);
+		char s=i.charAt(1);
+		
+		String a=null;
+		String b=null;
+		
+		if(m=='M') {
+			a="Mathematics";
+		}
+		else if(m=='C') {
+			a="Computer Science";
+		}
+		else if(m=='I') {
+			a="Information Technology";
+		}
+		
+		if(s=='1') {
+			b="Freshman";
+		}
+		else if(s=='2') {
+			b="Sophomore";
+		}
+		else if(s=='3') {
+			b="Junior";
+		}
+		else if(s=='4') {
+			b="Senior";
+		}
+		
+		System.out.printf("%s %s",a, b);
+		
+		
+		
+		
+		
+		
+	}
+
+}
