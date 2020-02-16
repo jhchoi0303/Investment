@@ -1,3 +1,3 @@
 # Investment :black_heart:
-
-> 컴퓨터학과 생존기 (2020.02.16. ~)
+> Preview(2019): WithCs
+> 컴퓨터학과 생존기(2020): To be Continued...
