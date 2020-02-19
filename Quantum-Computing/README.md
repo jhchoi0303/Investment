@@ -4,19 +4,7 @@
 > What is Quantum Computing?
 
 
->Quantum Algorithms : Deutsch's algorithm  
-
-
->Quantum Algorithms : Grover's search algorithm
+>Quantum Algorithms : Deutsch's algorithm
 >=======
-># Quantum Computing
+># Quantum Algorithms : Grover's search algorithm  
 >
->> What is Quantum Computing?
->
->
->>Quantum Algorithms : Deutsch's algorithm  
->
->
->>Quantum Algorithms : Grover's search algorithm
->>
->>>>>>> 
