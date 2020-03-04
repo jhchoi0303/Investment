@@ -1,4 +1,12 @@
-# Investment :black_heart:
-> Preview(2019): WithCs 
+# :black_heart:Investment :black_heart:
+#### **:computer:Preview(2019)**
 
-> 컴퓨터학과 생존기(2020): Quantum Computing & To be Continued...
+- WithCs 
+- BakeJoon
+- Food diary webpage project
+
+
+
+#### **:computer:컴퓨터학과 생존기(2020)**
+
+-  Quantum Computing
