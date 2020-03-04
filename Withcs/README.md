@@ -1,7 +1,5 @@
-# 컴퓨터 프로그래밍II (JAVA):fire:
+# :fire: Computer Programming class II (컴퓨터 프로그래밍II):fire:
 
-> **고려대학교 컴퓨터학과 첫 프로그래밍 수업 (2019학년도 1학년 2학기)**
->
-> > > WithCs 문제 java언어로 해결하기
->
-> 
+#### **Solving WithCs problems Using Java**
+
+고려대학교 컴퓨터학과 첫 프로그래밍 수업 (2019학년도 1학년 2학기)
