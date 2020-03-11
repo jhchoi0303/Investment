@@ -1,6 +1,6 @@
-# Java Practice :plate_with_cutlery:
+# Java Practice ✏️
 
-### ** Studying Java✏️**
+###  Studying Java
 
 ~ list,map,sets
 

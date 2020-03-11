@@ -1,9 +1,10 @@
 # :black_heart:Investment :black_heart:
 #### **:computer:Preview(2019)**
 
-- WithCs 
-- BakeJoon
-- Food diary webpage project
+- Java Practice
+- WithCs ( Java ) 
+- BakeJoon ( C )
+- Food diary webpage project (HTML, CSS, JavaScript)
 
 
 
