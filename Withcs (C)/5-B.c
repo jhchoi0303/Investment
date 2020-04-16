@@ -1,3 +1,4 @@
+/*
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 
@@ -28,7 +29,7 @@ int main() {
 	for (int i = 1; i <= num; i++) {
 
 		if (i < 10) {
-			printf("%d");
+			printf("%d",i);
 			if (i == 5) {
 			
 			}
@@ -44,3 +45,4 @@ int main() {
 
 
 }
+*/
