@@ -6,6 +6,10 @@
 
 
 
+![main](./main.jpg)
+
+
+
 **Language:** 
 
 - HTML
@@ -16,6 +20,7 @@
 
 - Fonts 
 - Layout Background color
-
+- Variable naming
+- Responsive Web
 #### 
 
