@@ -6,7 +6,7 @@
 
 
 
-![main](./main.jpg)
+![main](./main.JPG)
 
 
 
