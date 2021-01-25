@@ -610,3 +610,257 @@ ctrl + g
 6) main함수의 리턴값을 0으로 설정하고 확장한 스택을 정리한 후 리턴.
 
 main함수를 분석해본 결과 결국 입력받은 값을 처리하는 부분은 sub_140001180라는 것을 알 수 있다.
+
+## sub_140001180 분석
+
+해당 함수의 디스어셈블 결과(오른쪽 상단 코드, 일부 생략됨)를 보면 jmp와 jcc코드가 많이 복잡해 보인다. 이렇게 주소를 기준으로 어셈블리어를 보여주는 형태는 이 함수처럼 분기문이 많은 함수를 보여주기에 적합하지 않다. 대신 그래프를 사용해서 보면 상당히 직관적으로 함수를 살펴볼 수 있는데, x64dbg는 그래프로 보기 기능을 지원한다. 
+
+
+그래프는 노드(코드 부분)와 엣지(선)로 이루어져 있는데, 엣지의 색에 의미가 있다. 그 의미는 다음과 같다.
+
+* 초록색: jcc명령어에서 분기를 취했을 때 가는 노드
+
+* 빨간색: jcc명령어에서 분기를 취하지 않았을 때 가는 노드
+
+* 파란색: 항상 분기를 취하는 노드
+
+
+### 그래프 분석
+
+1. 1번 노드(시작 부분)
+
+인자로 받은 ecx(첫 번째 인자)와 edx(두 번째 인자)를 각각 rsp+0x8과 rsp+0x10에 저장. 하지만 이후 sub rsp, 0x18 명령어 때문에 이후 rsp를 통해 저장된 인자에 접근할 때는 rsp+0x8이 아닌 rsp+0x20, rsp+0x10이 아닌 rsp+0x28로 접근하게 됨.
+
+2. 9번 노드
+
+함수의 끝 노드. 확장한 스택을 정리하고 ret하는 코드밖에 없음.
+
+3. 6, 7, 8번 노드
+
+9번 노드(함수의 끝)와 연결된 노드들. 자세히 보시면 노드들이 함수의 리턴값인 eax를 설정한다는 것을 볼 수 있음. 6번과 8번 노드는 eax를 0으로, 7번 노드는 eax를 1로 설정.
+
+앞서 메인함수 분석에서 sub_140001180가 1을 리턴했을때 correct!가 출력된다는 사실을 생각해 봤을 때, 6번 노드와 8번 노드를 지나가면 안 되고 무조건 7번 노드를 지나가야만 된다는 사실을 알 수 있음. 이를 생각했을 때 correct!를 출력하는 함수의 흐름은 다음과 같다.
+
+1→2→3→4→5→7→9
+
+이와 같은 흐름으로 실행되어야 1이 리턴되며 메인함수에서 correct!가 출력되게 만들 수 있음. 
+
+
+
+
+
+* 1번 노드 → 2번 노드
+첫 번째 분기문은 1번 노드. 1번 노드 끝 부분을 보면 cmp명령어 후 분기하는 것을 확인할 수 있음.
+
+```
+cmp dword ptr ss:[rsp+20],2000 ; rsp+0x20(첫번째 인자)과 0x2000을 비교한다
+ja easy-crackme1.1400011A0 ; Jump short if above
+```
+
+2번 노드로 가기 위해서는 점프를 뛰지 말아야 하고(빨간색선) ja명령어니까 rsp+0x20(첫번째 인자)가 0x2000보다 작거나 같아야 함.
+
+
+
+* 2번 노드 → 3번 노드
+두 번째 분기문은 2번 노드. 1번 노드와 비슷한 명령어로 분기하는 것을 볼 수 있음.
+
+```
+cmp dword ptr ss:[rsp+28],2000 ; rsp+0x28(두번째 인자)과 0x2000을 비교한다
+jbe easy-crackme1.1400011A4 ; Jump short if below or equal
+```
+3번 노드로 가기 위해서는 점프를 뛰어야 하고(초록색선) jbe명령어니까 rsp+0x28(두 번째 인자)가 0x2000보다 작거나 같아야 함.
+
+
+
+* 3번 노드 → 4번 노드
+```
+mov eax,dword ptr ss:[rsp+20] ; eax = 첫 번째 인자
+imul eax,dword ptr ss:[rsp+28] ; eax = eax * 두 번째 인자
+mov dword ptr ss:[rsp],eax ; [rsp] = eax
+xor edx,edx ; edx = 0
+mov eax,dword ptr ss:[rsp+20] ; eax = 첫 번째 인자
+div dword ptr ss:[rsp+28] ; eax = edx:eax / 두 번째 인자
+mov dword ptr ss:[rsp+4],eax ; [rsp+4] = eax
+mov eax,dword ptr ss:[rsp+28] ; eax = 두 번째 인자
+mov ecx,dword ptr ss:[rsp+20] ; ecx = 첫 번째 인자
+xor ecx,eax ; ecx = ecx ^ eax
+mov eax,ecx ; eax = ecx
+mov dword ptr ss:[rsp+8],eax ; [rsp+8] = eax
+cmp dword ptr ss:[rsp],6AE9BC ; [rsp]와 0x6ae9bc을 비교한다.
+jne easy-crackme1.1400011F1 ; Jump short if not equal
+```
+
+어셈블리어 부분을 빼고 정리하면 다음과 같다.
+
+```
+eax = 첫 번째 인자
+eax = eax * 두 번째 인자
+[rsp] = eax
+edx = 0
+eax = 첫 번째 인자
+eax = edx:eax / 두 번째 인자
+[rsp+4] = eax
+eax = 두 번째 인자
+ecx = 첫 번째 인자
+ecx = ecx ^ eax
+eax = ecx
+[rsp+8] = eax
+# [rsp]와 0x6ae9bc을 비교한다.
+```
+
+
+코드를 한 번 더 정리해보면 다음과 같다.
+
+```
+[rsp] = 첫 번째 인자 * 두 번째 인자
+[rsp+4] = 첫 번째 인자 / 두 번째 인자
+[rsp+8] = 첫 번째 인자 ^ 두 번째 인자
+# [rsp]와 0x6ae9bc을 비교한다.
+```
+
+복잡해 보이는 어셈블리어는 이러한 식으로 한 단계씩 변형해 나가면 쉽게 의미를 파악할 수 있음.
+
+결국 3번 노드에서 4번 노드로 가기 위해서는 명령어가 jne이고 빨간색 선이니 첫 번째 인자 * 두 번째 인자가 0x6ae9bc이여야함.
+
+* 4번 노드 → 5번 노드
+네 번째 분기문은 4번 노드.
+
+
+```
+cmp dword ptr ss:[rsp+4],4 ; [rsp+4]와 4를 비교한다
+jne easy-crackme1.1400011F1 ; Jump near if not equal
+```
+
+* 5번 노드 → 7번 노드
+다섯 번째 분기문은 5번 노드.
+
+```
+cmp dword ptr ss:[rsp+8],12FC ; [rsp+8]과 0x12fc를 비교한다
+jne easy-crackme1.1400011F1 ; Jump near if not equal
+```
+
+
+3번 노드에서 설정한 [rsp+8]가 0x12fc인지 비교하고 점프. 7번 노드로 가려면 명령어가 jne이고 빨간 선이니 [rsp+8]이 0x12fc이여야 함.
+
+
+
+## solve.py 작성
+
+지금까지 구한 조건을 정리하면 다음과 같다.
+
+* 첫 번째 인자가 0x2000보다 작거나 같아야 한다
+* 두 번째 인자가 0x2000보다 작거나 같아야 한다
+* 첫 번째 인자 * 두 번째 인자 가 0x6ae9bc여야 한다.
+* 첫 번째 인자 / 두 번째 인자 가 4여야 한다.
+* 첫 번째 인자 ^ 두 번째 인자 가 0x12fc여야 한다.
+
+이를 바탕으로 모든 경우의 수를 탐색하는 코드를 작성해보면 답을 구할 수 있음.
+
+
+
+
+```
+# $ python solve.py 
+# answer: 5678 1234
+for x in range(0x2000 + 1):
+    for y in range(0x2000 + 1):
+        if x * y != 0x6ae9bc:
+            continue
+        
+        if x // y != 4:
+            continue
+        
+        if x ^ y != 0x12fc:
+            continue
+        
+        print('answer:', x, y)
+```
+
+
+### solve.py 개선
+
+문제는 풀었지만, solve.py를 실행하보면 답이 나오는데 시간이 좀 걸린다는 것을 알 수 있다. 모든 경우의 수를 하나씩 체크하는 방식으로 답을 찾았기 때문에 느린 것인데, 어떤 문제의 경우는 이러한 방식으로 답을 찾을 경우 굉장히 오랜 시간이 걸리는 경우도 있다. 이 문제 역시 0x2000보다 작거나 같다란 조건이 없으면 굉장히 시간이 오래 걸렸을 것이다.
+
+이번에는 solve.py를 조금 더 개선시켜서 매우 빠른 시간 안에 답이 나오도록 바꿔보도록 하겠다.
+
+두 인자의 조건중 다음과 같은 조건이 있었다.
+
+첫 번째 인자 ^ 두 번째 인자 가 0x12fc여야 한다.
+
+xor은 특이한 성질을 가지고 있는데 수식으로 정리하면 다음과 같다. (A와 B와 C는 임의의 정수)
+
+A ^ B ^ B == A
+
+A ^ A == 0
+
+A ^ B == C 일 때, C ^ A == B이고 C ^ B == A이다.
+
+문제에서는 첫 번째 인자 ^ 두 번째 인자 == 0x12fc이니, 두 번째 인자 == 첫 번째 인자 ^ 0x12fc라는걸 알 수 있다. 이를 이용해 다시 solve.py를 작성한 것이 오른쪽의 코드. 직접 돌려보면 처음의 solve.py보다 훨씬 빠른 속도로 답이 나온다.
+
+
+
+
+```
+# $ python solve.py 
+# answer: 5678 1234
+for x in range(0x2000 + 1):
+    y = x ^ 0x12fc
+    if x * y != 0x6ae9bc:
+        continue
+    
+    if x // y != 4:
+        continue
+        
+    print('answer:', x, y)
+```
+
+
+## 답안
+
+컴파일은 visual studio 2019를 통해 하였으며 x64 릴리즈 모드의 옵션은 다음과 같음.
+
+C/C++
+최적화: 사용 안 함(/Od)
+SDL 검사: 아니요(/sdl-)
+링커
+임의 기준 주소: 아니요(/DYNAMICBASE:NO)
+이외의 옵션은 기본값을 사용.
+
+
+
+```
+// easy-crackme.cpp
+#include <stdio.h>
+int check(unsigned int input1, unsigned int input2) {
+    unsigned int tmp1;
+    unsigned int tmp2;
+    unsigned int tmp3;
+    if (input1 > 0x2000 || input2 > 0x2000) {
+        return 0;
+    }
+    tmp1 = input1 * input2;
+    tmp2 = input1 / input2;
+    tmp3 = input1 ^ input2;
+    if (tmp1 == 0x6ae9bc && tmp2 == 4 && tmp3 == 0x12fc) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+int main() {
+    unsigned int input1;
+    unsigned int input2;
+    printf("input: ");
+    scanf_s("%d %d", &input1, &input2);
+    if (check(input1, input2)) {
+        puts("correct!");
+    }
+    else {
+        puts("wrong!");
+    }
+    return 0;
+}
+```
+
+
