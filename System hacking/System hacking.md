@@ -168,7 +168,7 @@ int main(void) {
 stack-3.c의 main함수는 24 바이트 크기의 버퍼 buf를 할당한다. scanf 함수를 통해 size 변수에 값을 입력받고, size만큼 buf에 데이터를 입력받는다.
 
 
-![main3c](/uploads/main3c.JPG)
+![main3c](./uploads/main3c.JPG)
 
 
 
