@@ -46,8 +46,9 @@ s.add(a1[3] + a1[15] +  (a1[15] ^ a1[19]) == 296)
 s.check()
 m = s.model()
 
+print("flag:",end='')
 for j in range (0,22):
-    print(chr(int(str(m[a1[j]]))))
+    print(chr(int(str(m[a1[j]]))),end='')
 
 
 
